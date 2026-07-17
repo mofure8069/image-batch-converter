@@ -63,14 +63,64 @@ foreach ($sf in $scanFormatDefs) {
     $sfx += 65
 }
 
-$clb = New-Object System.Windows.Forms.CheckedListBox
+$clb = New-Object System.Windows.Forms.ListView
 $clb.Location = New-Object System.Drawing.Point(10,110)
-$clb.Size = New-Object System.Drawing.Size(720,200)
-$clb.CheckOnClick = $true
-$clb.HorizontalScrollbar = $true
+$clb.Size = New-Object System.Drawing.Size(720,170)
+$clb.View = [System.Windows.Forms.View]::Details
+$clb.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
+$clb.CheckBoxes = $true
+$clb.FullRowSelect = $true
+$clb.MultiSelect = $true
+$clb.HideSelection = $false
 $clb.AllowDrop = $true
+[void]$clb.Columns.Add("Folder", 690)
 $form.Controls.Add($clb)
 $form.AllowDrop = $true
+
+$btnDelete = New-Object System.Windows.Forms.Button
+$btnDelete.Text = "Delete Selected"
+$btnDelete.Location = New-Object System.Drawing.Point(10,285)
+$btnDelete.Size = New-Object System.Drawing.Size(120,24)
+$form.Controls.Add($btnDelete)
+
+$lblDeleteHint = New-Object System.Windows.Forms.Label
+$lblDeleteHint.Text = "(click a row to toggle its selection, or Ctrl+A for all, then Delete Selected)"
+$lblDeleteHint.Location = New-Object System.Drawing.Point(140,289)
+$lblDeleteHint.AutoSize = $true
+$form.Controls.Add($lblDeleteHint)
+
+function Remove-SelectedFolderEntries {
+    if ($script:running) { return }
+    $selected = @($clb.SelectedIndices)
+    if ($selected.Count -eq 0) { return }
+    $selectedSet = [System.Collections.Generic.HashSet[int]]::new([int[]]$selected)
+    $newData = New-Object System.Collections.Generic.List[object]
+    for ($i = 0; $i -lt $script:folderData.Count; $i++) {
+        if (-not $selectedSet.Contains($i)) { $newData.Add($script:folderData[$i]) }
+    }
+    $script:folderData = $newData.ToArray()
+    foreach ($idx in ($selected | Sort-Object -Descending)) {
+        $clb.Items.RemoveAt($idx)
+    }
+    $lblStatus.Text = "Removed $($selected.Count) entr$(if ($selected.Count -eq 1) {'y'} else {'ies'}) from the list."
+    Add-Log $lblStatus.Text
+    $btnStart.Enabled = ($clb.Items.Count -gt 0)
+}
+
+$btnDelete.Add_Click({ Remove-SelectedFolderEntries })
+
+$clb.Add_KeyDown({
+    param($s, $e)
+    if ($e.Control -and $e.KeyCode -eq [System.Windows.Forms.Keys]::A) {
+        foreach ($item in $clb.Items) { $item.Selected = $true }
+        $e.Handled = $true
+        $e.SuppressKeyPress = $true
+    } elseif ($e.KeyCode -eq [System.Windows.Forms.Keys]::Delete) {
+        Remove-SelectedFolderEntries
+        $e.Handled = $true
+        $e.SuppressKeyPress = $true
+    }
+})
 
 $script:dropImgExtRegex = '^\.(jpe?g|png|gif|bmp|tiff?|webp)$'
 
@@ -115,12 +165,14 @@ function Add-DroppedPaths([string[]]$paths) {
                 $script:folderData[$existingIdx].Files = $mergedFiles
                 $addedFiles += $newOnes.Count
                 $sizeMB = [math]::Round(($mergedFiles | Measure-Object Length -Sum).Sum / 1MB, 1)
-                $clb.Items[$existingIdx] = "[$($mergedFiles.Count) files, $sizeMB MB]  $($g.Name)"
+                $clb.Items[$existingIdx].Text = "[$($mergedFiles.Count) files, $sizeMB MB]  $($g.Name)"
             }
         } else {
             $sizeMB = [math]::Round(($g.Group | Measure-Object Length -Sum).Sum / 1MB, 1)
             $label = "[$($g.Count) files, $sizeMB MB]  $($g.Name)"
-            $clb.Items.Add($label, $true) | Out-Null
+            $newItem = New-Object System.Windows.Forms.ListViewItem($label)
+            $newItem.Checked = $true
+            $clb.Items.Add($newItem) | Out-Null
             $script:folderData += [PSCustomObject]@{ Path = $g.Name; Files = @($g.Group) }
             $addedFiles += $g.Count
             $addedFolders++
@@ -294,7 +346,9 @@ $btnScan.Add_Click({
         $sizeMB = [math]::Round(($g.Group | Measure-Object Length -Sum).Sum / 1MB, 1)
         $relPath = $g.Name
         $label = "[$($g.Count) files, $sizeMB MB]  $relPath"
-        $clb.Items.Add($label, $true) | Out-Null
+        $scanItem = New-Object System.Windows.Forms.ListViewItem($label)
+        $scanItem.Checked = $true
+        $clb.Items.Add($scanItem) | Out-Null
         $script:folderData += [PSCustomObject]@{ Path = $g.Name; Files = $g.Group }
     }
     $lblStatus.Text = "Found $($groups.Count) folder(s) with image files, $($files.Count) files total."
@@ -303,7 +357,8 @@ $btnScan.Add_Click({
 })
 
 $btnStart.Add_Click({
-    if ($clb.CheckedItems.Count -eq 0) {
+    $checkedCount = @($clb.Items | Where-Object { $_.Checked }).Count
+    if ($checkedCount -eq 0) {
         [System.Windows.Forms.MessageBox]::Show("No folders selected.") | Out-Null
         return
     }
@@ -313,8 +368,9 @@ $btnStart.Add_Click({
     $btnStop.Enabled = $true
     $btnScan.Enabled = $false
     $btnBrowse.Enabled = $false
+    $btnDelete.Enabled = $false
 
-    $selectedIndices = 0..($clb.Items.Count - 1) | Where-Object { $clb.GetItemChecked($_) }
+    $selectedIndices = 0..($clb.Items.Count - 1) | Where-Object { $clb.Items[$_].Checked }
     $selectedFolders = $selectedIndices | ForEach-Object { $script:folderData[$_] }
 
     $allFiles = @()
@@ -409,6 +465,7 @@ $btnStart.Add_Click({
     $btnStop.Enabled = $false
     $btnScan.Enabled = $true
     $btnBrowse.Enabled = $true
+    $btnDelete.Enabled = $true
 })
 
 $btnStop.Add_Click({
