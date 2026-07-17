@@ -307,7 +307,7 @@ function Add-Log([string]$msg) {
 
 $btnBrowse.Add_Click({
     $fbd = New-Object System.Windows.Forms.FolderBrowserDialog
-    if (Test-Path $txtFolder.Text) { $fbd.SelectedPath = $txtFolder.Text }
+    if (-not [string]::IsNullOrWhiteSpace($txtFolder.Text) -and (Test-Path $txtFolder.Text)) { $fbd.SelectedPath = $txtFolder.Text }
     if ($fbd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         $txtFolder.Text = $fbd.SelectedPath
     }
@@ -315,7 +315,7 @@ $btnBrowse.Add_Click({
 
 $btnScan.Add_Click({
     $root = $txtFolder.Text
-    if (-not (Test-Path $root)) {
+    if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path $root)) {
         [System.Windows.Forms.MessageBox]::Show("Folder not found: $root") | Out-Null
         return
     }
