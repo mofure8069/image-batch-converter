@@ -482,6 +482,8 @@ $btnStart.Add_Click({
                     if (-not (Test-Path $job.OutFile) -or (Get-Item $job.OutFile).Length -eq 0) {
                         Add-Log "  ERROR converting: $($job.File.Name)"
                         $errCount++
+                    } elseif ($replaceMode -and ($job.OutFile -ne $job.File.FullName)) {
+                        Remove-Item -LiteralPath $job.File.FullName -Force -ErrorAction SilentlyContinue
                     }
                     $done++
                     $progressOverall.Value = [math]::Min($done, $total)
