@@ -436,6 +436,8 @@ $btnStart.Add_Click({
     $progressOverall.Value = 0
     $done = 0
     $errCount = 0
+    $origSizeBytes = 0
+    $newSizeBytes = 0
     $quality = $numQuality.Value
     $format = $cmbFormat.SelectedItem.ToString()
     $ext = switch ($format) { "WebP" { ".webp" } "JPEG" { ".jpg" } "PNG" { ".png" } }
@@ -483,6 +485,8 @@ $btnStart.Add_Click({
                 $f = $queue.Dequeue()
                 $outFile = Join-Path $outDir ($f.BaseName + $ext)
                 if ((-not $replaceMode) -and (Test-Path $outFile)) {
+                    $origSizeBytes += $f.Length
+                    $newSizeBytes += (Get-Item $outFile).Length
                     $done++
                     $progressOverall.Value = [math]::Min($done, $total)
                     continue
@@ -514,8 +518,12 @@ $btnStart.Add_Click({
                     if (-not (Test-Path $job.OutFile) -or (Get-Item $job.OutFile).Length -eq 0) {
                         Add-Log "  ERROR converting: $($job.File.Name)" $true
                         $errCount++
-                    } elseif ($replaceMode -and ($job.OutFile -ne $job.File.FullName)) {
-                        Remove-Item -LiteralPath $job.File.FullName -Force -ErrorAction SilentlyContinue
+                    } else {
+                        $origSizeBytes += $job.File.Length
+                        $newSizeBytes += (Get-Item $job.OutFile).Length
+                        if ($replaceMode -and ($job.OutFile -ne $job.File.FullName)) {
+                            Remove-Item -LiteralPath $job.File.FullName -Force -ErrorAction SilentlyContinue
+                        }
                     }
                     $done++
                     $progressOverall.Value = [math]::Min($done, $total)
@@ -531,19 +539,27 @@ $btnStart.Add_Click({
         }
     }
 
+    $sizeSummary = ""
+    if ($origSizeBytes -gt 0) {
+        $origSizeMB = [math]::Round($origSizeBytes / 1MB, 1)
+        $newSizeMB = [math]::Round($newSizeBytes / 1MB, 1)
+        $savedPct = [math]::Round((1 - ($newSizeBytes / $origSizeBytes)) * 100, 1)
+        $sizeSummary = " Size: $origSizeMB MB -> $newSizeMB MB ($savedPct% smaller)."
+    }
+
     if ($script:cancelRequested) {
-        $lblStatus.Text = "Stopped by user at $done/$total files."
+        $lblStatus.Text = "Stopped by user at $done/$total files.$sizeSummary"
     } else {
-        $lblStatus.Text = "Done. $done/$total files processed, $errCount error(s)."
+        $lblStatus.Text = "Done. $done/$total files processed, $errCount error(s).$sizeSummary"
     }
     Add-Log $lblStatus.Text ($errCount -gt 0)
     $progressOverall.Value = 0
     if ($script:cancelRequested) {
-        [System.Windows.Forms.MessageBox]::Show("Stopped at $done/$total files.", "Stopped", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+        [System.Windows.Forms.MessageBox]::Show("Stopped at $done/$total files.$sizeSummary", "Stopped", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
     } elseif ($errCount -gt 0) {
-        [System.Windows.Forms.MessageBox]::Show("Finished with $errCount error(s). $done/$total files processed - see the log for details.", "Finished with errors", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+        [System.Windows.Forms.MessageBox]::Show("Finished with $errCount error(s). $done/$total files processed.$sizeSummary`nSee the log for details.", "Finished with errors", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
     } else {
-        [System.Windows.Forms.MessageBox]::Show("All $total file(s) processed successfully.", "Finished", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+        [System.Windows.Forms.MessageBox]::Show("All $total file(s) processed successfully.$sizeSummary", "Finished", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
     }
     $script:running = $false
     $btnStart.Enabled = $true
