@@ -274,6 +274,18 @@ $numQuality.Location = New-Object System.Drawing.Point(330,318)
 $numQuality.Size = New-Object System.Drawing.Size(60,20)
 $form.Controls.Add($numQuality)
 
+$lblOutDirName = New-Object System.Windows.Forms.Label
+$lblOutDirName.Text = "Output folder name:"
+$lblOutDirName.Location = New-Object System.Drawing.Point(410,320)
+$lblOutDirName.AutoSize = $true
+$form.Controls.Add($lblOutDirName)
+
+$txtOutDirName = New-Object System.Windows.Forms.TextBox
+$txtOutDirName.Text = "converted_output"
+$txtOutDirName.Location = New-Object System.Drawing.Point(535,317)
+$txtOutDirName.Size = New-Object System.Drawing.Size(180,20)
+$form.Controls.Add($txtOutDirName)
+
 $cmbFormat.Add_SelectedIndexChanged({
     $isPng = ($cmbFormat.SelectedItem -eq "PNG")
     $numQuality.Enabled = -not $isPng
@@ -490,6 +502,11 @@ $btnStart.Add_Click({
         [System.Windows.Forms.MessageBox]::Show("No folders selected.") | Out-Null
         return
     }
+    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
+    if (-not $chkReplace.Checked -and ($txtOutDirName.Text.IndexOfAny($invalidChars) -ge 0)) {
+        [System.Windows.Forms.MessageBox]::Show("Output folder name contains invalid characters (e.g. \ / : * ? `" < > |). Please fix it.") | Out-Null
+        return
+    }
     $script:cancelRequested = $false
     $script:running = $true
     $btnStart.Enabled = $false
@@ -516,7 +533,8 @@ $btnStart.Add_Click({
     $quality = $numQuality.Value
     $format = $cmbFormat.SelectedItem.ToString()
     $ext = switch ($format) { "WebP" { ".webp" } "JPEG" { ".jpg" } "PNG" { ".png" } }
-    $outDirName = "$($format.ToLower())_output"
+    $outDirName = $txtOutDirName.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($outDirName)) { $outDirName = "$($format.ToLower())_output" }
     $parallelJobs = [int]$numParallel.Value
     $stripMeta = $chkStrip.Checked
     $replaceMode = $chkReplace.Checked
