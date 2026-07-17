@@ -1,0 +1,4 @@
+*
+!.gitignore
+!Run_Converter.bat
+!TIF_to_WebP_Converter.ps1

@@ -1,0 +1,310 @@
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "TIFF Batch Converter"
+$form.Size = New-Object System.Drawing.Size(760,635)
+$form.StartPosition = "CenterScreen"
+$form.MinimumSize = $form.Size
+
+$lblFolder = New-Object System.Windows.Forms.Label
+$lblFolder.Text = "Root folder:"
+$lblFolder.Location = New-Object System.Drawing.Point(10,15)
+$lblFolder.AutoSize = $true
+$form.Controls.Add($lblFolder)
+
+$txtFolder = New-Object System.Windows.Forms.TextBox
+$txtFolder.Location = New-Object System.Drawing.Point(90,12)
+$txtFolder.Size = New-Object System.Drawing.Size(530,20)
+$form.Controls.Add($txtFolder)
+
+$btnBrowse = New-Object System.Windows.Forms.Button
+$btnBrowse.Text = "Browse..."
+$btnBrowse.Location = New-Object System.Drawing.Point(630,10)
+$btnBrowse.Size = New-Object System.Drawing.Size(100,24)
+$form.Controls.Add($btnBrowse)
+
+$btnScan = New-Object System.Windows.Forms.Button
+$btnScan.Text = "Scan for TIFF folders"
+$btnScan.Location = New-Object System.Drawing.Point(10,45)
+$btnScan.Size = New-Object System.Drawing.Size(160,26)
+$form.Controls.Add($btnScan)
+
+$lblHint = New-Object System.Windows.Forms.Label
+$lblHint.Text = "Uncheck any folder you don't want touched. Already-converted files are skipped automatically (safe to re-run after Stop)."
+$lblHint.Location = New-Object System.Drawing.Point(180,50)
+$lblHint.Size = New-Object System.Drawing.Size(560,20)
+$form.Controls.Add($lblHint)
+
+$clb = New-Object System.Windows.Forms.CheckedListBox
+$clb.Location = New-Object System.Drawing.Point(10,80)
+$clb.Size = New-Object System.Drawing.Size(720,200)
+$clb.CheckOnClick = $true
+$clb.HorizontalScrollbar = $true
+$form.Controls.Add($clb)
+
+$lblFormat = New-Object System.Windows.Forms.Label
+$lblFormat.Text = "Output format:"
+$lblFormat.Location = New-Object System.Drawing.Point(280,290)
+$lblFormat.AutoSize = $true
+$form.Controls.Add($lblFormat)
+
+$cmbFormat = New-Object System.Windows.Forms.ComboBox
+$cmbFormat.DropDownStyle = "DropDownList"
+$cmbFormat.Items.AddRange(@("WebP","JPEG","PNG"))
+$cmbFormat.SelectedIndex = 0
+$cmbFormat.Location = New-Object System.Drawing.Point(380,287)
+$cmbFormat.Size = New-Object System.Drawing.Size(80,22)
+$form.Controls.Add($cmbFormat)
+
+$lblQuality = New-Object System.Windows.Forms.Label
+$lblQuality.Text = "Quality (1-100):"
+$lblQuality.Location = New-Object System.Drawing.Point(480,290)
+$lblQuality.AutoSize = $true
+$form.Controls.Add($lblQuality)
+
+$numQuality = New-Object System.Windows.Forms.NumericUpDown
+$numQuality.Minimum = 1
+$numQuality.Maximum = 100
+$numQuality.Value = 90
+$numQuality.Location = New-Object System.Drawing.Point(610,288)
+$numQuality.Size = New-Object System.Drawing.Size(60,20)
+$form.Controls.Add($numQuality)
+
+$cmbFormat.Add_SelectedIndexChanged({
+    $isPng = ($cmbFormat.SelectedItem -eq "PNG")
+    $numQuality.Enabled = -not $isPng
+    $lblQuality.Enabled = -not $isPng
+    $lblQuality.Text = if ($isPng) { "(PNG is lossless, no quality setting)" } else { "Quality (1-100):" }
+})
+
+$lblParallel = New-Object System.Windows.Forms.Label
+$lblParallel.Text = "Parallel jobs:"
+$lblParallel.Location = New-Object System.Drawing.Point(10,324)
+$lblParallel.AutoSize = $true
+$form.Controls.Add($lblParallel)
+
+$numParallel = New-Object System.Windows.Forms.NumericUpDown
+$numParallel.Minimum = 1
+$numParallel.Maximum = 32
+$numParallel.Value = [Math]::Max(1, [Environment]::ProcessorCount)
+$numParallel.Location = New-Object System.Drawing.Point(110,321)
+$numParallel.Size = New-Object System.Drawing.Size(60,20)
+$form.Controls.Add($numParallel)
+
+$lblParallelHint = New-Object System.Windows.Forms.Label
+$lblParallelHint.Text = "(runs this many conversions at once - big speedup on multi-core CPUs)"
+$lblParallelHint.Location = New-Object System.Drawing.Point(180,324)
+$lblParallelHint.AutoSize = $true
+$form.Controls.Add($lblParallelHint)
+
+$chkStrip = New-Object System.Windows.Forms.CheckBox
+$chkStrip.Text = "Strip metadata (faster + smaller, drops color profile/EXIF)"
+$chkStrip.Checked = $false
+$chkStrip.Location = New-Object System.Drawing.Point(10,347)
+$chkStrip.AutoSize = $true
+$form.Controls.Add($chkStrip)
+
+$btnStart = New-Object System.Windows.Forms.Button
+$btnStart.Text = "Start"
+$btnStart.Location = New-Object System.Drawing.Point(10,375)
+$btnStart.Size = New-Object System.Drawing.Size(120,32)
+$btnStart.Enabled = $false
+$form.Controls.Add($btnStart)
+
+$btnStop = New-Object System.Windows.Forms.Button
+$btnStop.Text = "Stop"
+$btnStop.Location = New-Object System.Drawing.Point(140,375)
+$btnStop.Size = New-Object System.Drawing.Size(120,32)
+$btnStop.Enabled = $false
+$form.Controls.Add($btnStop)
+
+$progressOverall = New-Object System.Windows.Forms.ProgressBar
+$progressOverall.Location = New-Object System.Drawing.Point(10,415)
+$progressOverall.Size = New-Object System.Drawing.Size(720,25)
+$form.Controls.Add($progressOverall)
+
+$lblStatus = New-Object System.Windows.Forms.Label
+$lblStatus.Location = New-Object System.Drawing.Point(10,445)
+$lblStatus.Size = New-Object System.Drawing.Size(720,20)
+$lblStatus.Text = "Idle. Pick a root folder and click Scan."
+$form.Controls.Add($lblStatus)
+
+$txtLog = New-Object System.Windows.Forms.TextBox
+$txtLog.Multiline = $true
+$txtLog.ScrollBars = "Vertical"
+$txtLog.Location = New-Object System.Drawing.Point(10,470)
+$txtLog.Size = New-Object System.Drawing.Size(720,130)
+$txtLog.ReadOnly = $true
+$txtLog.Font = New-Object System.Drawing.Font("Consolas",9)
+$form.Controls.Add($txtLog)
+
+$script:cancelRequested = $false
+$script:folderData = @()
+$script:running = $false
+
+function Add-Log([string]$msg) {
+    $txtLog.AppendText("$(Get-Date -Format 'HH:mm:ss') $msg`r`n")
+}
+
+$btnBrowse.Add_Click({
+    $fbd = New-Object System.Windows.Forms.FolderBrowserDialog
+    if (Test-Path $txtFolder.Text) { $fbd.SelectedPath = $txtFolder.Text }
+    if ($fbd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        $txtFolder.Text = $fbd.SelectedPath
+    }
+})
+
+$btnScan.Add_Click({
+    $root = $txtFolder.Text
+    if (-not (Test-Path $root)) {
+        [System.Windows.Forms.MessageBox]::Show("Folder not found: $root") | Out-Null
+        return
+    }
+    $clb.Items.Clear()
+    $script:folderData = @()
+    $btnStart.Enabled = $false
+    $lblStatus.Text = "Scanning..."
+    [System.Windows.Forms.Application]::DoEvents()
+
+    $files = Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Extension -match '^\.tiff?$' -and
+            $_.FullName -notmatch '\\_TIF_BACKUP\\' -and
+            $_.FullName -notmatch '\\\w+_output\\'
+        }
+    $groups = $files | Group-Object DirectoryName
+
+    foreach ($g in $groups) {
+        $sizeMB = [math]::Round(($g.Group | Measure-Object Length -Sum).Sum / 1MB, 1)
+        $relPath = $g.Name
+        $label = "[$($g.Count) files, $sizeMB MB]  $relPath"
+        $clb.Items.Add($label, $true) | Out-Null
+        $script:folderData += [PSCustomObject]@{ Path = $g.Name; Files = $g.Group }
+    }
+    $lblStatus.Text = "Found $($groups.Count) folder(s) with TIFF files, $($files.Count) files total."
+    Add-Log $lblStatus.Text
+    $btnStart.Enabled = ($groups.Count -gt 0)
+})
+
+$btnStart.Add_Click({
+    if ($clb.CheckedItems.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("No folders selected.") | Out-Null
+        return
+    }
+    $script:cancelRequested = $false
+    $script:running = $true
+    $btnStart.Enabled = $false
+    $btnStop.Enabled = $true
+    $btnScan.Enabled = $false
+    $btnBrowse.Enabled = $false
+
+    $selectedIndices = 0..($clb.Items.Count - 1) | Where-Object { $clb.GetItemChecked($_) }
+    $selectedFolders = $selectedIndices | ForEach-Object { $script:folderData[$_] }
+
+    $allFiles = @()
+    foreach ($fd in $selectedFolders) { $allFiles += $fd.Files }
+    $total = $allFiles.Count
+    $progressOverall.Maximum = [math]::Max($total,1)
+    $progressOverall.Value = 0
+    $done = 0
+    $errCount = 0
+    $quality = $numQuality.Value
+    $format = $cmbFormat.SelectedItem.ToString()
+    $ext = switch ($format) { "WebP" { ".webp" } "JPEG" { ".jpg" } "PNG" { ".png" } }
+    $outDirName = "$($format.ToLower())_output"
+    $parallelJobs = [int]$numParallel.Value
+    $stripMeta = $chkStrip.Checked
+
+    foreach ($fd in $selectedFolders) {
+        if ($script:cancelRequested) { break }
+        $dir = $fd.Path
+        $tifFiles = $fd.Files
+        Add-Log "=== $dir ($($tifFiles.Count) files) ==="
+        [System.Windows.Forms.Application]::DoEvents()
+
+        $outDir = Join-Path $dir $outDirName
+        if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir | Out-Null }
+
+        $queue = New-Object System.Collections.Generic.Queue[object]
+        foreach ($f in $tifFiles) { $queue.Enqueue($f) }
+        $inFlight = @()
+
+        while (($queue.Count -gt 0 -or $inFlight.Count -gt 0) -and -not $script:cancelRequested) {
+            while ($inFlight.Count -lt $parallelJobs -and $queue.Count -gt 0) {
+                $f = $queue.Dequeue()
+                $outFile = Join-Path $outDir ($f.BaseName + $ext)
+                if (Test-Path $outFile) {
+                    $done++
+                    $progressOverall.Value = [math]::Min($done, $total)
+                    continue
+                }
+                $psi = New-Object System.Diagnostics.ProcessStartInfo
+                $psi.FileName = "magick"
+                $argParts = New-Object System.Collections.Generic.List[string]
+                $argParts.Add("`"$($f.FullName)`"")
+                if ($stripMeta) { $argParts.Add("-strip") }
+                if ($format -ne "PNG") { $argParts.Add("-quality"); $argParts.Add("$quality") }
+                $argParts.Add("`"$outFile`"")
+                $psi.Arguments = $argParts -join " "
+                $psi.UseShellExecute = $false
+                $psi.CreateNoWindow = $true
+                $proc = [System.Diagnostics.Process]::Start($psi)
+                $inFlight += [PSCustomObject]@{ Proc = $proc; File = $f; OutFile = $outFile }
+            }
+
+            $lblStatus.Text = "Converting: $done/$total done, $($inFlight.Count) in progress..."
+            Start-Sleep -Milliseconds 80
+            [System.Windows.Forms.Application]::DoEvents()
+
+            $stillRunning = @()
+            foreach ($job in $inFlight) {
+                if ($job.Proc.HasExited) {
+                    if (-not (Test-Path $job.OutFile) -or (Get-Item $job.OutFile).Length -eq 0) {
+                        Add-Log "  ERROR converting: $($job.File.Name)"
+                        $errCount++
+                    }
+                    $done++
+                    $progressOverall.Value = [math]::Min($done, $total)
+                } else {
+                    $stillRunning += $job
+                }
+            }
+            $inFlight = $stillRunning
+        }
+
+        if ($script:cancelRequested -and $inFlight.Count -gt 0) {
+            foreach ($job in $inFlight) { try { $job.Proc.Kill() } catch {} }
+        }
+    }
+
+    if ($script:cancelRequested) {
+        $lblStatus.Text = "Stopped by user at $done/$total files."
+    } else {
+        $lblStatus.Text = "Done. $done/$total files processed, $errCount error(s)."
+    }
+    Add-Log $lblStatus.Text
+    $script:running = $false
+    $btnStart.Enabled = $true
+    $btnStop.Enabled = $false
+    $btnScan.Enabled = $true
+    $btnBrowse.Enabled = $true
+})
+
+$btnStop.Add_Click({
+    $script:cancelRequested = $true
+    $lblStatus.Text = "Stopping (finishing current file)..."
+})
+
+$form.Add_FormClosing({
+    param($s,$e)
+    if ($script:running) {
+        $script:cancelRequested = $true
+    }
+})
+
+$form.Add_Shown({
+    if (Test-Path "E:\6.相册\8.Painting") { $txtFolder.Text = "E:\6.相册\8.Painting" }
+})
+
+[void]$form.ShowDialog()
