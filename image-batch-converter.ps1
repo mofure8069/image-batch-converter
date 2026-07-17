@@ -31,7 +31,7 @@ $btnScan.Size = New-Object System.Drawing.Size(160,26)
 $form.Controls.Add($btnScan)
 
 $lblHint = New-Object System.Windows.Forms.Label
-$lblHint.Text = "Uncheck any folder you don't want touched, or drag files/folders straight into the list below. Already-converted files are skipped (safe to re-run after Stop)."
+$lblHint.Text = "Uncheck folders to skip, or drag files/folders in directly."
 $lblHint.Location = New-Object System.Drawing.Point(180,50)
 $lblHint.Size = New-Object System.Drawing.Size(560,20)
 $form.Controls.Add($lblHint)
