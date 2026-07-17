@@ -2,7 +2,7 @@
 !.gitignore
 !.gitattributes
 !Run_Converter.bat
-!TIF_to_WebP_Converter.ps1
+!tiff-batch-converter.ps1
 !README.md
 !LICENSE
 !screenshots/

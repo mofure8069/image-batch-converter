@@ -3,7 +3,7 @@ Add-Type -AssemblyName System.Drawing
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Image Batch Converter"
-$form.Size = New-Object System.Drawing.Size(760,635)
+$form.Size = New-Object System.Drawing.Size(760,665)
 $form.StartPosition = "CenterScreen"
 $form.MinimumSize = $form.Size
 
@@ -31,13 +31,40 @@ $btnScan.Size = New-Object System.Drawing.Size(160,26)
 $form.Controls.Add($btnScan)
 
 $lblHint = New-Object System.Windows.Forms.Label
-$lblHint.Text = "Finds JPEG/PNG/GIF/BMP/TIFF/WebP files. Uncheck any folder you don't want touched. Already-converted files are skipped (safe to re-run after Stop)."
+$lblHint.Text = "Uncheck any folder you don't want touched. Already-converted files are skipped (safe to re-run after Stop)."
 $lblHint.Location = New-Object System.Drawing.Point(180,50)
 $lblHint.Size = New-Object System.Drawing.Size(560,20)
 $form.Controls.Add($lblHint)
 
+$lblScanFormats = New-Object System.Windows.Forms.Label
+$lblScanFormats.Text = "Scan for:"
+$lblScanFormats.Location = New-Object System.Drawing.Point(10,80)
+$lblScanFormats.AutoSize = $true
+$form.Controls.Add($lblScanFormats)
+
+$scanFormatDefs = @(
+    @{ Name = "JPEG"; Pattern = "jpe?g" },
+    @{ Name = "PNG";  Pattern = "png" },
+    @{ Name = "GIF";  Pattern = "gif" },
+    @{ Name = "BMP";  Pattern = "bmp" },
+    @{ Name = "TIFF"; Pattern = "tiff?" },
+    @{ Name = "WebP"; Pattern = "webp" }
+)
+$script:scanFormatChecks = @{}
+$sfx = 80
+foreach ($sf in $scanFormatDefs) {
+    $chk = New-Object System.Windows.Forms.CheckBox
+    $chk.Text = $sf.Name
+    $chk.Checked = $true
+    $chk.Location = New-Object System.Drawing.Point($sfx,78)
+    $chk.AutoSize = $true
+    $form.Controls.Add($chk)
+    $script:scanFormatChecks[$sf.Pattern] = $chk
+    $sfx += 65
+}
+
 $clb = New-Object System.Windows.Forms.CheckedListBox
-$clb.Location = New-Object System.Drawing.Point(10,80)
+$clb.Location = New-Object System.Drawing.Point(10,110)
 $clb.Size = New-Object System.Drawing.Size(720,200)
 $clb.CheckOnClick = $true
 $clb.HorizontalScrollbar = $true
@@ -45,7 +72,7 @@ $form.Controls.Add($clb)
 
 $lblFormat = New-Object System.Windows.Forms.Label
 $lblFormat.Text = "Output format:"
-$lblFormat.Location = New-Object System.Drawing.Point(280,290)
+$lblFormat.Location = New-Object System.Drawing.Point(280,320)
 $lblFormat.AutoSize = $true
 $form.Controls.Add($lblFormat)
 
@@ -53,13 +80,13 @@ $cmbFormat = New-Object System.Windows.Forms.ComboBox
 $cmbFormat.DropDownStyle = "DropDownList"
 $cmbFormat.Items.AddRange(@("JPEG","WebP","PNG"))
 $cmbFormat.SelectedIndex = 0
-$cmbFormat.Location = New-Object System.Drawing.Point(380,287)
+$cmbFormat.Location = New-Object System.Drawing.Point(380,317)
 $cmbFormat.Size = New-Object System.Drawing.Size(80,22)
 $form.Controls.Add($cmbFormat)
 
 $lblQuality = New-Object System.Windows.Forms.Label
 $lblQuality.Text = "Quality (1-100):"
-$lblQuality.Location = New-Object System.Drawing.Point(480,290)
+$lblQuality.Location = New-Object System.Drawing.Point(480,320)
 $lblQuality.AutoSize = $true
 $form.Controls.Add($lblQuality)
 
@@ -67,7 +94,7 @@ $numQuality = New-Object System.Windows.Forms.NumericUpDown
 $numQuality.Minimum = 1
 $numQuality.Maximum = 100
 $numQuality.Value = 90
-$numQuality.Location = New-Object System.Drawing.Point(610,288)
+$numQuality.Location = New-Object System.Drawing.Point(610,318)
 $numQuality.Size = New-Object System.Drawing.Size(60,20)
 $form.Controls.Add($numQuality)
 
@@ -80,7 +107,7 @@ $cmbFormat.Add_SelectedIndexChanged({
 
 $lblParallel = New-Object System.Windows.Forms.Label
 $lblParallel.Text = "Parallel jobs:"
-$lblParallel.Location = New-Object System.Drawing.Point(10,324)
+$lblParallel.Location = New-Object System.Drawing.Point(10,354)
 $lblParallel.AutoSize = $true
 $form.Controls.Add($lblParallel)
 
@@ -88,44 +115,44 @@ $numParallel = New-Object System.Windows.Forms.NumericUpDown
 $numParallel.Minimum = 1
 $numParallel.Maximum = 32
 $numParallel.Value = [Math]::Max(1, [Environment]::ProcessorCount)
-$numParallel.Location = New-Object System.Drawing.Point(110,321)
+$numParallel.Location = New-Object System.Drawing.Point(110,351)
 $numParallel.Size = New-Object System.Drawing.Size(60,20)
 $form.Controls.Add($numParallel)
 
 $lblParallelHint = New-Object System.Windows.Forms.Label
 $lblParallelHint.Text = "(runs this many conversions at once - big speedup on multi-core CPUs)"
-$lblParallelHint.Location = New-Object System.Drawing.Point(180,324)
+$lblParallelHint.Location = New-Object System.Drawing.Point(180,354)
 $lblParallelHint.AutoSize = $true
 $form.Controls.Add($lblParallelHint)
 
 $chkStrip = New-Object System.Windows.Forms.CheckBox
 $chkStrip.Text = "Strip metadata (faster + smaller, drops color profile/EXIF)"
 $chkStrip.Checked = $false
-$chkStrip.Location = New-Object System.Drawing.Point(10,347)
+$chkStrip.Location = New-Object System.Drawing.Point(10,377)
 $chkStrip.AutoSize = $true
 $form.Controls.Add($chkStrip)
 
 $btnStart = New-Object System.Windows.Forms.Button
 $btnStart.Text = "Start"
-$btnStart.Location = New-Object System.Drawing.Point(10,375)
+$btnStart.Location = New-Object System.Drawing.Point(10,405)
 $btnStart.Size = New-Object System.Drawing.Size(120,32)
 $btnStart.Enabled = $false
 $form.Controls.Add($btnStart)
 
 $btnStop = New-Object System.Windows.Forms.Button
 $btnStop.Text = "Stop"
-$btnStop.Location = New-Object System.Drawing.Point(140,375)
+$btnStop.Location = New-Object System.Drawing.Point(140,405)
 $btnStop.Size = New-Object System.Drawing.Size(120,32)
 $btnStop.Enabled = $false
 $form.Controls.Add($btnStop)
 
 $progressOverall = New-Object System.Windows.Forms.ProgressBar
-$progressOverall.Location = New-Object System.Drawing.Point(10,415)
+$progressOverall.Location = New-Object System.Drawing.Point(10,445)
 $progressOverall.Size = New-Object System.Drawing.Size(720,25)
 $form.Controls.Add($progressOverall)
 
 $lblStatus = New-Object System.Windows.Forms.Label
-$lblStatus.Location = New-Object System.Drawing.Point(10,445)
+$lblStatus.Location = New-Object System.Drawing.Point(10,475)
 $lblStatus.Size = New-Object System.Drawing.Size(720,20)
 $lblStatus.Text = "Idle. Pick a root folder and click Scan."
 $form.Controls.Add($lblStatus)
@@ -133,7 +160,7 @@ $form.Controls.Add($lblStatus)
 $txtLog = New-Object System.Windows.Forms.TextBox
 $txtLog.Multiline = $true
 $txtLog.ScrollBars = "Vertical"
-$txtLog.Location = New-Object System.Drawing.Point(10,470)
+$txtLog.Location = New-Object System.Drawing.Point(10,500)
 $txtLog.Size = New-Object System.Drawing.Size(720,130)
 $txtLog.ReadOnly = $true
 $txtLog.Font = New-Object System.Drawing.Font("Consolas",9)
@@ -167,9 +194,17 @@ $btnScan.Add_Click({
     $lblStatus.Text = "Scanning..."
     [System.Windows.Forms.Application]::DoEvents()
 
+    $activePatterns = @($script:scanFormatChecks.Keys | Where-Object { $script:scanFormatChecks[$_].Checked })
+    if ($activePatterns.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("Check at least one format to scan for.") | Out-Null
+        $lblStatus.Text = "Idle. Pick a root folder and click Scan."
+        return
+    }
+    $extRegex = '^\.(' + ($activePatterns -join '|') + ')$'
+
     $files = Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object {
-            $_.Extension -match '^\.(jpe?g|png|gif|bmp|tiff?|webp)$' -and
+            $_.Extension -match $extRegex -and
             $_.FullName -notmatch '\\_TIF_BACKUP\\' -and
             $_.FullName -notmatch '\\\w+_output\\' -and
             $_.FullName -notmatch '\\screenshots\\'

@@ -32,7 +32,7 @@ A simple Windows GUI for batch-converting images (JPEG, PNG, GIF, BMP, TIFF, Web
 
 ## Files
 
-- `TIF_to_WebP_Converter.ps1` — the GUI application
+- `tiff-batch-converter.ps1` — the GUI application
 - `Run_Converter.bat` — launcher that runs the script with the right PowerShell execution policy
 
 ## Known limitations

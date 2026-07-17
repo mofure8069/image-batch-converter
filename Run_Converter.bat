@@ -1,2 +1,2 @@
 @echo off
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0TIF_to_WebP_Converter.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tiff-batch-converter.ps1"
