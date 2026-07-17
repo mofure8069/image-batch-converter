@@ -2,6 +2,8 @@
 
 A simple Windows GUI for batch-converting TIFF images to WebP, JPEG, or PNG using [ImageMagick](https://imagemagick.org/).
 
+![TIFF Batch Converter screenshot](screenshots/screenshot.png)
+
 ## Features
 
 - Scans a folder tree and lists every subfolder containing `.tif`/`.tiff` files, with file counts and sizes
